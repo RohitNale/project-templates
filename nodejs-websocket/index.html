@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test Client</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .status {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.connecting { background: #fff3cd; color: #856404; }
+        .status.open { background: #d4edda; color: #155724; }
+        .status.closing { background: #fff3cd; color: #856404; }
+        .status.closed { background: #f8d7da; color: #721c24; }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-connect { background: #007bff; color: white; }
+        .btn-disconnect { background: #dc3545; color: white; }
+        .btn-send { background: #28a745; color: white; }
+        
+        .message-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        .log-entry.sent { color: #4ec9b0; }
+        .log-entry.received { color: #ce9178; }
+        .log-entry.info { color: #569cd6; }
+        .log-entry.error { color: #f48771; }
+        .timestamp {
+            color: #808080;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Test Client</h1>
+    
+    <div id="status" class="status closed">Disconnected</div>
+    
+    <div class="controls">
+        <button id="connectBtn" class="btn-connect" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" class="btn-disconnect" onclick="disconnect()" disabled>Disconnect</button>
+    </div>
+    
+    <div class="message-area">
+        <input type="text" id="messageInput" placeholder="Enter message..." onkeypress="handleKeyPress(event)">
+        <button id="sendBtn" class="btn-send" onclick="sendMessage()" disabled>Send</button>
+    </div>
+    
+    <div id="log" class="log"></div>
+
+    <script>
+        let ws = null;
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const messageInput = document.getElementById('messageInput');
+
+        function updateStatus(state) {
+            statusEl.className = `Status: ${state.toString().toLowerCase()}`;
+            const states = {
+                0: 'Connecting',
+                1: 'Open',
+                2: 'Closing',
+                3: 'Closed'
+            };
+            statusEl.textContent = states[state] || state;
+            
+            const isConnected = state === 1;
+            connectBtn.disabled = isConnected;
+            disconnectBtn.disabled = !isConnected;
+            sendBtn.disabled = !isConnected;
+            messageInput.disabled = !isConnected;
+        }
+
+        function log(message, type = 'info') {
+            const now = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="timestamp">[${now}]</span>${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.CONNECTING) {
+                return;
+            }
+            
+            ws = new WebSocket('ws://localhost:8080');
+            updateStatus(ws.readyState);
+            log('Connecting to ws://localhost:8080...', 'info');
+
+            ws.onopen = () => {
+                updateStatus(ws.readyState);
+                log('Connected to server!', 'info');
+            };
+
+            ws.onmessage = (event) => {
+                log(`Received: ${event.data}`, 'received');
+            };
+
+            ws.onclose = (event) => {
+                updateStatus(ws.readyState);
+                log(`Connection closed (Code: ${event.code}, Reason: ${event.reason || 'none'})`, 'info');
+            };
+
+            ws.onerror = (error) => {
+                log(`Error: ${error.message || 'WebSocket error occurred'}`, 'error');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                log('Disconnecting...', 'info');
+                ws.close();
+            }
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(message);
+                log(`Sent: ${message}`, 'sent');
+                messageInput.value = '';
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Initialize
+        updateStatus(3);
+    </script>
+</body>
+</html>
